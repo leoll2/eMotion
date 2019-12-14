@@ -1,0 +1,140 @@
+#!/usr/bin/env python
+
+import rospy
+import numpy as np
+from geometry_msgs.msg import Point, Vector3
+from view_controller_msgs.msg import CameraPlacement
+from visualization_msgs.msg import Marker, MarkerArray
+
+
+class World:
+    def __init__(self):
+        self.topic_marker = 'visualization_marker_array'
+        self.objects = MarkerArray()
+        self.n_obj = 0
+        self.pub_mark = rospy.Publisher(self.topic_marker, MarkerArray, queue_size = 1)
+
+    def add_object(self, frame_id, obj_type, pos_x, pos_y, pos_z,
+        orient_x=0.0, orient_y=0.0, orient_z=0.0, orient_w=1.0, 
+        scale_x=1.0, scale_y=1.0, scale_z=1.0, 
+        color_a=1.0, color_r=1.0, color_g=0.0, color_b=0.0):
+
+        obj = Marker()
+        obj.header.frame_id = frame_id
+        obj.type = obj_type
+        obj.action = Marker.ADD
+        obj.pose.position.x = pos_x
+        obj.pose.position.y = pos_y
+        obj.pose.position.z = pos_z
+        obj.pose.orientation.x = orient_x
+        obj.pose.orientation.y = orient_y
+        obj.pose.orientation.z = orient_z
+        obj.pose.orientation.w = orient_w
+        obj.scale.x = scale_x
+        obj.scale.y = scale_y
+        obj.scale.z = scale_z
+        obj.color.a = color_a
+        obj.color.r = color_r
+        obj.color.g = color_g
+        obj.color.b = color_b
+        
+        self.objects.markers.append(obj)
+        self.n_obj += 1
+
+    def update(self):
+        # Update the world (TODO make it less trivial)
+        if np.random.uniform() > 0.9:
+            if self.n_obj > 3:
+                self.objects.markers.pop(0)
+                self.n_obj -= 1
+            self.add_object("base_link", Marker.CUBE, 
+                np.random.uniform(-3,3), np.random.uniform(-3,3), np.random.uniform(-1,1),
+                scale_x=0.4, scale_y=0.4, scale_z=0.4)
+
+        # Renumber the marker IDs
+        id = 0
+        for m in self.objects.markers:
+            m.id = id
+            id += 1
+
+        # Publish the objects info
+        self.pub_mark.publish(self.objects)
+
+
+class Camera:
+
+    def __init__(self, freq):
+        self.topic_rviz_cam = '/rviz/camera_placement'
+        self.cp = CameraPlacement()
+        self.freq = freq
+        self.head_x = 0
+        self.head_y = 0
+        self.pub_cam  = rospy.Publisher(self.topic_rviz_cam, CameraPlacement, queue_size = 1)
+
+    def update(self, t):
+
+        # Compute viewpoint coordinates
+        p = Point(-self.head_x/50, -7, -self.head_y/50)
+        self.cp.eye.point = p
+        self.cp.eye.header.frame_id = "base_link"
+
+        # Compute focus point coordinates
+        f = Point(0, 0, 0)
+        self.cp.focus.point = f
+        self.cp.focus.header.frame_id = "base_link"
+
+        # Compute orientation vector
+        up = Vector3(0, 0, 1)
+        self.cp.up.vector = up
+        self.cp.up.header.frame_id = "base_link"
+
+        # Compute elapsed time from animation start
+        self.cp.time_from_start = rospy.Duration(1.0 / self.freq)       
+
+        # Publish camera info to rviz
+        self.pub_cam.publish(self.cp)
+
+    def set_head_pos(self, x, y):
+        self.head_x = x
+        self.head_y = y
+
+
+class SceneBuilder:
+
+    def __init__(self):
+        
+        self.freq = 15.0    # [Hz] how often the code below executes
+        self.camera = Camera(self.freq)
+        self.world = World()
+
+        # Initialize ROS node
+        rospy.init_node('eMotion_scene_builder', anonymous=True)
+
+        # Subscribers
+        self.sub_head = rospy.Subscriber("/face_detector/head_pos", Point, self.head_pos_callback)
+
+
+    def head_pos_callback(self, head_pos):
+
+        print("Seen head at %d, %d" % (head_pos.x, head_pos.y))
+        self.camera.set_head_pos(head_pos.x, head_pos.y)
+
+
+    def run(self):
+
+        rate = rospy.Rate(self.freq)
+
+        while not rospy.is_shutdown():
+            t = rospy.get_time()
+
+            self.world.update()
+            self.camera.update(t)
+
+            rate.sleep()
+        
+
+if __name__ == '__main__':
+
+    sb = SceneBuilder()
+    sb.run()
+

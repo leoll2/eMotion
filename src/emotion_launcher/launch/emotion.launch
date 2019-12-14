@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+
+    <!-- Parameters -->
+    <arg name="debug" default="false" />
+    <arg unless="$(arg debug)" name="launch_prefix" value="" />
+    <arg     if="$(arg debug)" name="launch_prefix" value="gdb --ex run --args" />
+    <arg name="load_config" default="true" />
+    <arg name="command_args" value="-d $(find emotion_launcher)/launch/emotion.rviz" />
+
+    <!-- Start frame acquisition from camera -->
+    <include file="$(find video_stream_opencv)/launch/camera.launch">
+    	<arg name="camera_name" value="camera" />
+    	<!-- device identifier /dev/videoX -->
+    	<arg name="video_stream_provider" value="0" />
+    	<!-- camera fps -->
+    	<arg name="set_camera_fps" value="30" />
+    	<!-- frames per second to query the camera for -->
+    	<arg name="fps" value="30" />
+    	<!-- force width and height, 0 means no forcing -->
+	    <arg name="width" value="640"/>
+	    <arg name="height" value="480"/>
+	    <arg name="visualize" value="false"/>
+    </include>
+    
+    <!-- Start face detector -->
+    <node name="face_detector" pkg="face_detector" type="face_detector" output="screen">
+    </node>
+
+    <!-- Launch RVIZ -->
+    <node name="$(anon rviz)" launch-prefix="$(arg launch_prefix)" pkg="rviz" type="rviz" required="true"
+    respawn="false" output="screen" args="$(arg command_args)">
+    </node>
+    
+    <!-- Launch eMotion scene engine -->
+    <node name="eMotion_scene_builder" pkg="scene_builder" type="eMotion_scene_builder" output="screen" />
+
+</launch>

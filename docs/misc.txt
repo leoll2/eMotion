@@ -1,0 +1,28 @@
+-----------------------------------------------
+
+RVIZ
+
+- assi: R->x, G->y, B->z
+- runnare esempio shapes:
+  1) roscore
+  2) rosrun using_markers basic_shapes
+  3) rosrun rviz rviz
+  4) In rviz clicca sul bottone "Add", scegli "Marker"
+  5) Rinomina Fixed Frame da "map" a "my_frame"
+  reference: https://drive.google.com/file/d/0B1jURzlre6cAV2lvdmpJRFZWUmM/view
+- Marker reference:
+    c++     -> http://wiki.ros.org/rviz/DisplayTypes/Marker
+    python  -> https://answers.ros.org/question/11135/plotting-a-markerarray-of-spheres-with-rviz/
+
+-----------------------------------------------
+
+RVIZ_ANIMATED_VIEW_CONTROLLER
+
+- subscriber di /rviz/camera_placement
+- cameraPlacementCallback(CameraPlacementConstPtr)
+- beginNewTransition(eye, focus, up, transition_time)
+    - eye   -> Ogre::Vector3 punto di vista
+    - focus -> Ogre::Vector3 punto al centro dell'inquadratura
+    - up    -> Ogre::Vector3 vettore che punta in alto (controllo pitch e roll)
+    - transition_time -> ros::Duration durata transizione
+- il profilo di interpolazione per l'animazione (smooth) e' dato dalla variabile progress in update()

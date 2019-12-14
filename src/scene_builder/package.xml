@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>scene_builder</name>
+  <version>1.0.0</version>
+  <description>
+    Package that generates the scene to be displayed on the basis
+    of the user viewpoint and car sensors.
+  </description>
+  <maintainer email="leonardo.lai@live.com">Leonardo Lai</maintainer>
+  <license>GPLv3</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>genmsg</build_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>view_controller_msgs</build_depend>
+
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>view_controller_msgs</exec_depend>
+
+</package>

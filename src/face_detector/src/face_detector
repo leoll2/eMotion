@@ -1,0 +1,95 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import rospy
+import rospkg
+import cv2
+import numpy as np
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import Point
+from cv_bridge import CvBridge, CvBridgeError
+
+rospack = rospkg.RosPack()
+
+
+class FaceDetector:
+
+    def __init__(self):
+
+        self.conf_thresh = 0.7      # ignore detections with lower confidence
+
+        # Initialize detection network
+        self.prototxt_file = os.path.join(rospack.get_path("face_detector"), 
+            "model", "face.prototxt.txt")
+        self.model_file = os.path.join(rospack.get_path("face_detector"), 
+            "model", "face_ssd.caffemodel")
+        self.detect_net = cv2.dnn.readNetFromCaffe(self.prototxt_file, self.model_file)
+
+        self.bridge = CvBridge()
+
+        # Subscribers
+        self.sub_img = rospy.Subscriber("/camera/image_raw", Image, self.camera_callback)
+
+        # Publishers
+        self.pub_pos = rospy.Publisher("/face_detector/head_pos", Point, queue_size=1)
+        self.pub_det = rospy.Publisher("/face_detector/det_img", Image, queue_size=1)
+
+    
+    def detect(self, img):
+
+        (h, w) = img.shape[:2]
+        # convert image to blob (resizes too)
+        blob = cv2.dnn.blobFromImage(cv2.resize(img, (300, 300)), 1.0,
+            (300, 300), (104.0, 177.0, 123.0))
+        self.detect_net.setInput(blob)
+        detections = self.detect_net.forward()
+        # pick bounding box with highest confidence
+        conf_max = 0
+        i_box = -1
+        for i in range(0, detections.shape[2]):
+            conf = detections[0, 0, i, 2]
+            if conf > self.conf_thresh and conf > conf_max:
+                i_box = i
+                conf_max = conf
+        if i_box < 0:
+            return [None]*4
+        else:
+            box = detections[0, 0, i_box, 3:7] * np.array([w, h, w, h])
+            (x1, y1, x2, y2) = box.astype("int")
+            return x1, y1, x2-x1, y2-y1
+
+
+    def camera_callback(self, imgmsg):
+        try:
+            cv_img = self.bridge.imgmsg_to_cv2(imgmsg, "bgr8")
+        except CvBridgeError as e:
+            print(e)
+
+        det_img = cv_img.copy()
+        (frame_h, frame_w) = cv_img.shape[:2]
+        x,y,w,h = self.detect(det_img)
+
+        if x is not None:
+            cv2.rectangle(det_img, (x, y), (x+w, y+h), (0,255,255), 2)
+            p = Point()
+            p.x = x + w/2 - frame_w/2
+            p.y = y + h/2 - frame_h/2
+            p.z = 1.0
+            self.pub_pos.publish(p)
+
+        self.pub_det.publish(self.bridge.cv2_to_imgmsg(det_img, "bgr8"))
+        #cv2.imshow("Detection image", det_img)
+        #cv2.waitKey(1)
+
+
+if __name__ == '__main__':
+
+    fd = FaceDetector()
+    # Initialize ROS node
+    rospy.init_node('face_detector', anonymous=True)
+    try:
+        rospy.spin()
+    except KeyboardInterrupt:
+        print("Closing face detector...")
+    cv2.destroyAllWindows()
