@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import division
+from math import *
 import rospy
 import numpy as np
 from geometry_msgs.msg import Point, Vector3
@@ -8,16 +10,30 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 
 class World:
-    def __init__(self):
+
+    def __init__(self, max_obj):
+
         self.topic_marker = 'visualization_marker_array'
+        self.max_obj = max_obj
         self.objects = MarkerArray()
         self.n_obj = 0
+        self.min_angle_visible = 0.2 * pi
+        self.max_angle_visible = 0.8 * pi
+        self.min_angle_hidden = 0.08 * pi
+        self.max_angle_hidden = 0.92 * pi
+        self.min_radius = 5.0
+        self.max_radius = 20.0
+        self.ref_x = 0
+        self.vel_x = 0
+
+        self.init_fixed_objects()
+        self.init_random_world()
         self.pub_mark = rospy.Publisher(self.topic_marker, MarkerArray, queue_size = 1)
 
     def add_object(self, frame_id, obj_type, pos_x, pos_y, pos_z,
-        orient_x=0.0, orient_y=0.0, orient_z=0.0, orient_w=1.0, 
-        scale_x=1.0, scale_y=1.0, scale_z=1.0, 
-        color_a=1.0, color_r=1.0, color_g=0.0, color_b=0.0):
+            orient_x=0.0, orient_y=0.0, orient_z=0.0, orient_w=1.0, 
+            scale_x=1.0, scale_y=1.0, scale_z=1.0, 
+            color_a=1.0, color_r=1.0, color_g=0.0, color_b=0.0):
 
         obj = Marker()
         obj.header.frame_id = frame_id
@@ -38,24 +54,91 @@ class World:
         obj.color.g = color_g
         obj.color.b = color_b
         
+        self.add_object_2(obj)
+
+    def add_object_2(self, obj):
+
+        obj.id = self.n_obj
         self.objects.markers.append(obj)
         self.n_obj += 1
 
-    def update(self):
-        # Update the world (TODO make it less trivial)
-        if np.random.uniform() > 0.9:
-            if self.n_obj > 3:
-                self.objects.markers.pop(0)
-                self.n_obj -= 1
-            self.add_object("base_link", Marker.CUBE, 
-                np.random.uniform(-3,3), np.random.uniform(-3,3), np.random.uniform(-1,1),
-                scale_x=0.4, scale_y=0.4, scale_z=0.4)
+    def create_random_obj(self, frame_id, ref_x):
 
-        # Renumber the marker IDs
-        id = 0
+        r = np.random.uniform(self.min_radius, self.max_radius)
+        angle = np.random.uniform(self.min_angle_hidden, self.max_angle_hidden)
+        height = np.random.uniform(0.3, 3)
+
+        obj = Marker()
+        obj.header.frame_id = frame_id
+        obj.type = Marker.CUBE
+        #obj.type = Marker.MESH_RESOURCE    # TEST
+        #obj.mesh_resource = "file:///home/leoll2/Downloads/building_1.dae"
+        #obj.mesh_use_embedded_materials = True
+        obj.action = Marker.ADD
+        obj.pose.position.x = r * cos(angle) + ref_x
+        obj.pose.position.y = r * sin(angle)
+        obj.pose.position.z = height/2
+        obj.pose.orientation.x = 0
+        obj.pose.orientation.y = 0
+        obj.pose.orientation.z = 0
+        obj.pose.orientation.w = 1
+        obj.scale.x = np.random.uniform(0.3, 1.0)
+        obj.scale.y = np.random.uniform(0.3, 1.0)
+        obj.scale.z = height
+        obj.color.a = 1.0
+        obj.color.r = np.random.uniform()
+        obj.color.g = np.random.uniform()
+        obj.color.b = np.random.uniform()
+        return obj
+
+    def reconfigure_random_obj(self, obj):
+
+        r = np.random.uniform(self.min_radius, self.max_radius)
+        height = np.random.uniform(0.3, 3)
+
+        if self.vel_x > 0:
+            angle = np.random.uniform(self.min_angle_hidden, self.min_angle_visible)
+        else:
+            angle = np.random.uniform(self.max_angle_visible, self.max_angle_hidden)
+
+        obj.pose.position.x = r * cos(angle) + self.ref_x
+        obj.pose.position.y = r * sin(angle)
+        obj.pose.position.z = height/2
+        obj.scale.x = np.random.uniform(0.3, 1.0)
+        obj.scale.y = np.random.uniform(0.3, 1.0)
+        obj.scale.z = height
+        obj.color.r = np.random.uniform()
+        obj.color.g = np.random.uniform()
+        obj.color.b = np.random.uniform()
+
+    def init_fixed_objects(self):
+
+        # Street
+        '''
+        self.add_object("base_link", Marker.CUBE, self.ref_x, 0, -0.05,
+        orient_x=0.0, orient_y=0.0, orient_z=0.0, orient_w=1.0,
+        scale_x=100, scale_y=30, scale_z=0.1,
+        color_a=1.0, color_r=1.0, color_g=0.1, color_b=0.1)
+        '''
+
+    def init_random_world(self):
+        
+        for i in range(self.n_obj, self.max_obj):
+            obj = self.create_random_obj("base_link", 0)
+            self.add_object_2(obj)
+
+    def update(self, ref_x, vel_x):
+        '''
+        self.objects.markers.pop(0)
         for m in self.objects.markers:
-            m.id = id
-            id += 1
+        '''
+        self.ref_x = ref_x
+        self.vel_x = vel_x
+
+        for m in self.objects.markers:
+            angle = atan2(m.pose.position.y, m.pose.position.x - ref_x)
+            if not (self.min_angle_hidden <= angle <= self.max_angle_hidden):
+                self.reconfigure_random_obj(m)
 
         # Publish the objects info
         self.pub_mark.publish(self.objects)
@@ -64,6 +147,7 @@ class World:
 class Camera:
 
     def __init__(self, freq):
+
         self.topic_rviz_cam = '/rviz/camera_placement'
         self.cp = CameraPlacement()
         self.freq = freq
@@ -71,15 +155,17 @@ class Camera:
         self.head_y = 0
         self.pub_cam  = rospy.Publisher(self.topic_rviz_cam, CameraPlacement, queue_size = 1)
 
-    def update(self, t):
+    def update(self, t, ref_x):
 
         # Compute viewpoint coordinates
-        p = Point(-self.head_x/50, -7, -self.head_y/50)
+        p = Point(ref_x - self.head_x/300, 0, 1 - self.head_y/300)
         self.cp.eye.point = p
         self.cp.eye.header.frame_id = "base_link"
 
         # Compute focus point coordinates
-        f = Point(0, 0, 0)
+        #f = Point(0, 0, 0)
+        f = Point(ref_x, 1, 1)
+
         self.cp.focus.point = f
         self.cp.focus.header.frame_id = "base_link"
 
@@ -99,13 +185,42 @@ class Camera:
         self.head_y = y
 
 
+class Vehicle:
+
+    def __init__(self, freq, v_x):
+        
+        self.freq = freq
+        self.pos_x = 0.0
+        self.v_x = v_x
+
+    def update(self):
+
+        self.pos_x += self.v_x / self.freq
+
+    
+    def update_vel(self, a_x):
+
+        self.v_x += self.a_x / self.freq
+        # TODO: take readings from accelerometer
+
+    def get_pos(self):
+        
+        return self.pos_x
+
+    def get_vel(self):
+
+        return self.v_x
+
+
 class SceneBuilder:
 
-    def __init__(self):
+    def __init__(self, freq, max_objects):
         
-        self.freq = 15.0    # [Hz] how often the code below executes
+        self.max_objects = max_objects
+        self.freq = freq
+        self.car = Vehicle(self.freq, 1.0)
         self.camera = Camera(self.freq)
-        self.world = World()
+        self.world = World(self.max_objects)
 
         # Initialize ROS node
         rospy.init_node('eMotion_scene_builder', anonymous=True)
@@ -113,12 +228,10 @@ class SceneBuilder:
         # Subscribers
         self.sub_head = rospy.Subscriber("/face_detector/head_pos", Point, self.head_pos_callback)
 
-
     def head_pos_callback(self, head_pos):
 
         print("Seen head at %d, %d" % (head_pos.x, head_pos.y))
         self.camera.set_head_pos(head_pos.x, head_pos.y)
-
 
     def run(self):
 
@@ -126,15 +239,18 @@ class SceneBuilder:
 
         while not rospy.is_shutdown():
             t = rospy.get_time()
-
-            self.world.update()
-            self.camera.update(t)
-
+            self.car.update()
+            car_pos = self.car.get_pos()
+            car_vel = self.car.get_vel()
+            self.world.update(car_pos, car_vel)
+            self.camera.update(t, car_pos)
             rate.sleep()
         
 
 if __name__ == '__main__':
 
-    sb = SceneBuilder()
+    freq = 15.0         # [Hz] how often the code below executes
+    max_objects = 40    # maximum number of objects in the scene
+    sb = SceneBuilder(freq, max_objects)
     sb.run()
 
