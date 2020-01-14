@@ -23,6 +23,12 @@
 	    <arg name="height" value="480"/>
 	    <arg name="visualize" value="false"/>
     </include>
+
+    <!-- Start serial communication -->
+    <node pkg="rosserial_python" type="serial_node.py" name="serial_node">
+        <param name="port" value="/dev/ttyUSB0"/>
+        <param name="baud" value="9600"/>
+    </node>
     
     <!-- Start face detector -->
     <node name="face_detector" pkg="face_detector" type="face_detector" output="screen">
