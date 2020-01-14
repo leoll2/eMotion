@@ -9,16 +9,12 @@
     <arg name="load_config" default="true" />
     <arg name="command_args" value="-d $(find emotion_launcher)/launch/emotion.rviz" />
 
-    <!-- Start frame acquisition from camera -->
+    <!-- USB camera -->
     <include file="$(find video_stream_opencv)/launch/camera.launch">
     	<arg name="camera_name" value="camera" />
-    	<!-- device identifier /dev/videoX -->
     	<arg name="video_stream_provider" value="0" />
-    	<!-- camera fps -->
     	<arg name="set_camera_fps" value="30" />
-    	<!-- frames per second to query the camera for -->
     	<arg name="fps" value="30" />
-    	<!-- force width and height, 0 means no forcing -->
 	    <arg name="width" value="640"/>
 	    <arg name="height" value="480"/>
 	    <arg name="visualize" value="false"/>
@@ -30,14 +26,17 @@
         <param name="baud" value="9600"/>
     </node>
     
+    <!-- CSI camera (Jetson Nano) -->
+    <!--
+    <node name="camera" pkg="jetson_nano_csi_cam" type="jetson_nano_cam" output="screen"/>
+    -->
+
     <!-- Start face detector -->
-    <node name="face_detector" pkg="face_detector" type="face_detector" output="screen">
-    </node>
+    <node name="face_detector" pkg="face_detector" type="face_detector" output="screen"/>
 
     <!-- Launch RVIZ -->
     <node name="$(anon rviz)" launch-prefix="$(arg launch_prefix)" pkg="rviz" type="rviz" required="true"
-    respawn="false" output="screen" args="$(arg command_args)">
-    </node>
+    respawn="false" output="screen" args="$(arg command_args)"/>
     
     <!-- Launch eMotion scene engine -->
     <node name="eMotion_scene_builder" pkg="scene_builder" type="eMotion_scene_builder" output="screen" />
