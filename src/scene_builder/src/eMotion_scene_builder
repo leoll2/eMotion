@@ -7,6 +7,7 @@ import numpy as np
 from geometry_msgs.msg import Point, Vector3
 from view_controller_msgs.msg import CameraPlacement
 from visualization_msgs.msg import Marker, MarkerArray
+from imu_wrapper.srv import *
 
 
 class World:
@@ -187,21 +188,44 @@ class Camera:
 
 class Vehicle:
 
-    def __init__(self, freq, v_x):
+    def __init__(self, freq, v_x=0.0, v_max=5.0):
         
         self.freq = freq
         self.pos_x = 0.0
         self.v_x = v_x
+        self.v_max = v_max
+        try:
+            rospy.wait_for_service('get_acceleration', timeout=1)
+        except rospy.ROSException as e:
+            print("Too long wait for get_acceleration to become available")
+            raise e
 
     def update(self):
 
+        self.update_vel()
         self.pos_x += self.v_x / self.freq
 
     
-    def update_vel(self, a_x):
+    def update_vel(self):
+    
+        try:
+            getacc = rospy.ServiceProxy('get_acceleration', GetAcceleration)
+            resp = getacc()
+            ax = resp.accel.x
+            ay = resp.accel.y
+            az = resp.accel.z
+            print "Got acceleration %.3f %.3f %.3f" % (ax, ay, az)
+        except rospy.ServiceException, e:
+            print "Service call failed: %s" % e
+            return
+        
+        # Update speed with acceleration
+        # Note: physics has been distorted to enhance strong accelerations
+        self.v_x += 10*ax*abs(ax) / self.freq
+        self.v_x = max(min(self.v_x, self.v_max), -self.v_max)
 
-        self.v_x += self.a_x / self.freq
-        # TODO: take readings from accelerometer
+        print("Vx = %.4f" % self.v_x)
+
 
     def get_pos(self):
         
@@ -218,7 +242,7 @@ class SceneBuilder:
         
         self.max_objects = max_objects
         self.freq = freq
-        self.car = Vehicle(self.freq, 1.0)
+        self.car = Vehicle(self.freq, 0.0, v_max=7.0)
         self.camera = Camera(self.freq)
         self.world = World(self.max_objects)
 
@@ -250,7 +274,7 @@ class SceneBuilder:
 if __name__ == '__main__':
 
     freq = 15.0         # [Hz] how often the code below executes
-    max_objects = 40    # maximum number of objects in the scene
+    max_objects = 20    # maximum number of objects in the scene
     sb = SceneBuilder(freq, max_objects)
     sb.run()
 
