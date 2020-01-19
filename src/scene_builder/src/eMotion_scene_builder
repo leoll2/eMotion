@@ -194,11 +194,13 @@ class Vehicle:
         self.pos_x = 0.0
         self.v_x = v_x
         self.v_max = v_max
+        self.acc_enabled = False
         try:
             rospy.wait_for_service('get_acceleration', timeout=1)
+            self.acc_enabled = True
         except rospy.ROSException as e:
             print("Too long wait for get_acceleration to become available")
-            raise e
+
 
     def update(self):
 
@@ -208,6 +210,9 @@ class Vehicle:
     
     def update_vel(self):
     
+        if not self.acc_enabled:
+            return
+
         try:
             getacc = rospy.ServiceProxy('get_acceleration', GetAcceleration)
             resp = getacc()
@@ -273,8 +278,8 @@ class SceneBuilder:
 
 if __name__ == '__main__':
 
-    freq = 15.0         # [Hz] how often the code below executes
-    max_objects = 20    # maximum number of objects in the scene
+    freq = 20.0         # [Hz] how often the code below executes
+    max_objects = 30    # maximum number of objects in the scene
     sb = SceneBuilder(freq, max_objects)
     sb.run()
 

@@ -76,7 +76,11 @@ def _get_acc(req):
 
 if __name__ == '__main__':
 
-    imu = ImuSerial()
+    try:
+        imu = ImuSerial()
+    except SerialException, ValueError:
+        print("Failed to start IMU serial node")
+        sys.exit()
 
     rospy.init_node('imu_wrapper', anonymous=True)
     rospy.Service('get_acceleration', GetAcceleration, _get_acc)
