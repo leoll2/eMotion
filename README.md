@@ -32,7 +32,7 @@ catkin_make
 
 ```
 source devel/setup.bash
-roslaunch emotion_launcher/emotion.launch
+roslaunch emotion_launcher emotion.launch
 ```
 
 ## Disclaimer
