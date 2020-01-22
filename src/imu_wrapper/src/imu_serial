@@ -5,6 +5,7 @@ import os
 import sys
 import serial
 import rospy
+import numpy as np
 from serial import SerialException
 from geometry_msgs.msg import Vector3
 from imu_wrapper.srv import GetAcceleration, GetAccelerationResponse
@@ -41,9 +42,10 @@ class ImuSerial:
 
     def interpretAccData(self, acc_data):
 
-        ax = 256*ord(acc_data[0]) + ord(acc_data[1]) - bias
-        ay = 256*ord(acc_data[2]) + ord(acc_data[3]) - bias
-        az = 256*ord(acc_data[4]) + ord(acc_data[5]) - bias
+        ax = np.int16(256*ord(acc_data[0]) + ord(acc_data[1]))
+        ay = np.int16(256*ord(acc_data[2]) + ord(acc_data[3]))
+        az = np.int16(256*ord(acc_data[4]) + ord(acc_data[5]))
+        print("Ax_raw: %d" % ax)
         ax /= 8192.0
         ay /= 8192.0
         az /= 8192.0

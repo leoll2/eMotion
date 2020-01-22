@@ -113,14 +113,7 @@ class World:
         obj.color.b = np.random.uniform()
 
     def init_fixed_objects(self):
-
-        # Street
-        '''
-        self.add_object("base_link", Marker.CUBE, self.ref_x, 0, -0.05,
-        orient_x=0.0, orient_y=0.0, orient_z=0.0, orient_w=1.0,
-        scale_x=100, scale_y=30, scale_z=0.1,
-        color_a=1.0, color_r=1.0, color_g=0.1, color_b=0.1)
-        '''
+        return
 
     def init_random_world(self):
         
@@ -129,10 +122,7 @@ class World:
             self.add_object_2(obj)
 
     def update(self, ref_x, vel_x):
-        '''
-        self.objects.markers.pop(0)
-        for m in self.objects.markers:
-        '''
+
         self.ref_x = ref_x
         self.vel_x = vel_x
 
@@ -164,7 +154,6 @@ class Camera:
         self.cp.eye.header.frame_id = "base_link"
 
         # Compute focus point coordinates
-        #f = Point(0, 0, 0)
         f = Point(ref_x, 1, 1)
 
         self.cp.focus.point = f
@@ -191,10 +180,18 @@ class Vehicle:
     def __init__(self, freq, v_x=0.0, v_max=5.0):
         
         self.freq = freq
-        self.pos_x = 0.0
+        self.pos_x = self.pos_z = 0.0
+        self.pos_y = 1.0
         self.v_x = v_x
+        self.v_y = self.v_z = 0
         self.v_max = v_max
+        self.a_x = self.a_y = self.a_z = 0
         self.acc_enabled = False
+
+        self.acc_pub = rospy.Publisher('car_acceleration', Vector3, queue_size=1)
+        self.vel_pub = rospy.Publisher('car_velocity', Vector3, queue_size=1)
+        self.pos_pub = rospy.Publisher('car_position', Vector3, queue_size=1)
+
         try:
             rospy.wait_for_service('get_acceleration', timeout=1)
             self.acc_enabled = True
@@ -202,10 +199,31 @@ class Vehicle:
             print("Too long wait for get_acceleration to become available")
 
 
+    def publish_state(self):
+        
+        acc = Vector3(self.a_x, self.a_y, self.a_z)
+        vel = Vector3(self.v_x, self.v_y, self.v_z)
+        pos = Vector3(self.pos_x, self.pos_y, self.pos_z)
+
+        self.acc_pub.publish(acc)
+        self.vel_pub.publish(vel)
+        self.pos_pub.publish(pos)
+
+        rospy.loginfo("Car state\n"
+            " Pos: (%.3f,  %.3f,  %.3f)\n"
+            " Vel: (%.3f,  %.3f,  %.3f)\n"
+            " Acc: (%.3f,  %.3f,  %.3f)",
+            self.pos_x, self.pos_y, self.pos_z,
+            self.v_x, self.v_y, self.v_z,
+            self.a_x, self.a_y, self.a_z
+        )
+
+
     def update(self):
 
         self.update_vel()
         self.pos_x += self.v_x / self.freq
+        self.publish_state()
 
     
     def update_vel(self):
@@ -216,9 +234,9 @@ class Vehicle:
         try:
             getacc = rospy.ServiceProxy('get_acceleration', GetAcceleration)
             resp = getacc()
-            ax = resp.accel.x
-            ay = resp.accel.y
-            az = resp.accel.z
+            self.a_x = ax = resp.accel.x
+            self.a_y = ay = resp.accel.y
+            self.a_z = az = resp.accel.z
             print "Got acceleration %.3f %.3f %.3f" % (ax, ay, az)
         except rospy.ServiceException, e:
             print "Service call failed: %s" % e
@@ -228,8 +246,6 @@ class Vehicle:
         # Note: physics has been distorted to enhance strong accelerations
         self.v_x += 10*ax*abs(ax) / self.freq
         self.v_x = max(min(self.v_x, self.v_max), -self.v_max)
-
-        print("Vx = %.4f" % self.v_x)
 
 
     def get_pos(self):
@@ -257,10 +273,12 @@ class SceneBuilder:
         # Subscribers
         self.sub_head = rospy.Subscriber("/face_detector/head_pos", Point, self.head_pos_callback)
 
+
     def head_pos_callback(self, head_pos):
 
-        print("Seen head at %d, %d" % (head_pos.x, head_pos.y))
+        #print("Seen head at %d, %d" % (head_pos.x, head_pos.y)) 
         self.camera.set_head_pos(head_pos.x, head_pos.y)
+
 
     def run(self):
 
